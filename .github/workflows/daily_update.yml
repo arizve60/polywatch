@@ -1,0 +1,34 @@
+name: Daily Whale Scan
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Runs every day at Midnight UTC
+  workflow_dispatch:      # Allows you to click a button to run it manually
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install pandas requests
+
+      - name: Run Scanner
+        run: python scanner.py
+
+      - name: Commit and Push Data
+        run: |
+          git config --global user.name 'GitHub Action'
+          git config --global user.email 'action@github.com'
+          git add elite_data.csv
+          git commit -m "Auto-update daily data" || exit 0
+          git push
