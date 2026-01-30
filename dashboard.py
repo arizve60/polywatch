@@ -1,199 +1,145 @@
 import streamlit as st
-import requests
 import pandas as pd
-import time
 
-# --- 1. PAGE CONFIGURATION (Must be first) ---
+# --- 1. PAGE SETUP ---
 st.set_page_config(
-    page_title="PolyWatch Pro",
-    page_icon="🐳",
+    page_title="PolyScout // INSTANT",
+    page_icon="⚡",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
-# --- 2. CUSTOM CSS (To make it look fancy) ---
+# --- 2. CSS STYLING ---
 st.markdown("""
     <style>
-    .big-font { font-size:20px !important; }
-    div[data-testid="stMetricValue"] { font-size: 28px; color: #4CAF50; }
+    .stApp { background-color: #050505; color: #e0e0e0; }
+    
+    /* CARD DESIGN */
+    .trader-card {
+        background: rgba(20, 20, 20, 0.6);
+        border: 1px solid #333;
+        border-radius: 12px;
+        padding: 15px 25px;
+        margin-bottom: 12px;
+        transition: transform 0.2s, border-color 0.2s;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .trader-card:hover {
+        transform: translateX(5px);
+        border-color: #00ff41;
+    }
+    
+    /* TEXT COLORS */
+    .green-text { color: #00ff41 !important; font-weight: bold; }
+    .white-text { color: #ffffff !important; font-weight: bold; }
+    .grey-text { color: #888; font-size: 0.75rem; letter-spacing: 1px; text-transform: uppercase; }
+    
+    /* BUTTON */
+    .analyze-btn {
+        background: #111;
+        border: 1px solid #444;
+        color: #fff;
+        padding: 8px 16px;
+        border-radius: 6px;
+        text-decoration: none;
+        font-size: 0.85rem;
+        transition: 0.2s;
+    }
+    .analyze-btn:hover { border-color: #fff; background: #222; }
     </style>
-    """, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
-# --- HEADERS ---
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0",
-    "Accept": "application/json"
-}
+# --- 3. LOAD DATA ---
+st.title("⚡ POLY SCOUT // ELITE FEED")
 
-# --- HELPER FUNCTIONS ---
-def get_trade_count(wallet_address):
-    try:
-        url = "https://data-api.polymarket.com/traded"
-        params = {"user": wallet_address}
-        response = requests.get(url, params=params, headers=HEADERS)
-        if response.status_code == 200:
-            return int(response.json().get('traded', 0))
-        return 0
-    except:
-        return 0
+try:
+    df = pd.read_csv("elite_data.csv")
+except FileNotFoundError:
+    st.error("⚠️ 'elite_data.csv' not found! You must run 'scanner.py' first.")
+    st.stop()
 
-def get_manual_portfolio_value(wallet_address):
-    try:
-        url = "https://data-api.polymarket.com/positions"
-        params = {"user": wallet_address}
-        response = requests.get(url, params=params, headers=HEADERS)
-        if response.status_code == 200:
-            data = response.json()
-            total = sum([float(p.get('currentValue', 0)) for p in data])
-            return total
-        return 0.0
-    except:
-        return 0.0
+# --- 4. FILTER BAR ---
+with st.expander("🎛️ Live Filters (Refine Results)", expanded=True):
+    c1, c2, c3 = st.columns(3)
+    min_cash = c1.slider("Active Money ($)", 0, 500000, 50000)
+    min_roi = c2.slider("Min ROI (%)", 0, 500, 5)
+    sort_by = c3.selectbox("Sort By", ["Highest ROI", "Highest Active Cash", "Most Trades"])
 
-# --- SIDEBAR UI ---
-with st.sidebar:
-    st.header("🎛️ Control Panel")
-    st.write("Configure your scanning filters below.")
+# Apply Filters & Sorting
+filtered_df = df[ (df['active_balance'] >= min_cash) & (df['roi'] >= min_roi) ]
+
+if sort_by == "Highest ROI":
+    filtered_df = filtered_df.sort_values(by="roi", ascending=False)
+elif sort_by == "Highest Active Cash":
+    filtered_df = filtered_df.sort_values(by="active_balance", ascending=False)
+else:
+    filtered_df = filtered_df.sort_values(by="trade_count", ascending=False)
+
+# --- 5. PAGINATION (THE NEW PART) ---
+st.divider()
+
+if len(filtered_df) > 0:
+    # A. Calculate total pages
+    items_per_page = 20
+    total_items = len(filtered_df)
+    total_pages = max(1, (total_items - 1) // items_per_page + 1)
     
-    st.divider()
-    
-    scan_depth = st.slider("📡 Scan Depth (Profiles)", 50, 1000, 100, 50)
-    min_money = st.number_input("💰 Min Active Capital ($)", value=50000, step=5000)
-    min_roi = st.slider("📈 Min ROI (%)", 0.0, 100.0, 1.0)
-    min_trades = st.number_input("🧠 Min Trades (Experience)", value=50, step=10)
-    
-    st.divider()
-    start_btn = st.button("🚀 LAUNCH SCANNER", type="primary", use_container_width=True)
+    # B. Show Page Selector
+    col_left, col_right = st.columns([1, 4])
+    with col_left:
+        current_page = st.number_input("Page Number", min_value=1, max_value=total_pages, value=1)
+    with col_right:
+        st.write("") # Spacer
+        st.write("") 
+        st.caption(f"Showing Page {current_page} of {total_pages} (Total: {total_items} Traders)")
 
-# --- MAIN DASHBOARD UI ---
-st.title("🐳 PolyWatch Pro Dashboard")
-st.markdown("Real-time arbitrage & copy-trading intelligence.")
+    # C. Slice the Data
+    start_idx = (current_page - 1) * items_per_page
+    end_idx = start_idx + items_per_page
+    page_data = filtered_df.iloc[start_idx:end_idx]
 
-# TABS LAYOUT
-tab1, tab2 = st.tabs(["📊 Live Scanner", "ℹ️ How it Works"])
-
-with tab1:
-    # Top Metrics Row (Empty at first)
-    col1, col2, col3, col4 = st.columns(4)
-    metric_count = col1.metric("Whales Found", "0")
-    metric_money = col2.metric("Total Active Cap", "$0")
-    metric_roi = col3.metric("Top ROI", "0%")
-    metric_status = col4.metric("Status", "Idle")
-
-    st.divider()
-
-    # Placeholders for data
-    progress_bar = st.progress(0)
-    table_placeholder = st.empty()
-
-    if start_btn:
-        metric_status.metric("Status", "Scanning...", delta_color="off")
+    # --- 6. DISPLAY CARDS ---
+    for index, row in page_data.iterrows():
+        name = row.get('userName', 'Unknown')
+        wallet = row.get('proxyWallet')
+        roi = row['roi']
+        active = row['active_balance']
+        trades = row['trade_count']
         
-        # 1. Fetch Candidates
-        base_url = "https://data-api.polymarket.com/v1/leaderboard"
-        candidates = []
-        pages = scan_depth // 50
+        # Calculate Rank (Global Rank)
+        # If you are on page 2, the first person is Rank #21
+        global_rank = start_idx + list(page_data.index).index(index) + 1
         
-        for i in range(pages):
-            try:
-                params = {"category": "OVERALL", "timePeriod": "MONTH", "orderBy": "PNL", "limit": 50, "offset": i*50}
-                r = requests.get(base_url, params=params, headers=HEADERS)
-                candidates.extend(r.json())
-                time.sleep(0.1)
-            except:
-                pass
-            # Update bar during download
-            progress_bar.progress((i + 1) / (pages * 2))
+        html = f"""
+<div class="trader-card">
+<div style="display:flex; align-items:center; gap:15px; width:30%;">
+<span style="font-size:1.2rem; font-weight:bold; color:#444;">#{global_rank}</span>
+<div style="background:#222; width:45px; height:45px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.2rem;">👤</div>
+<div>
+<h3 style="margin:0; font-size:1.1rem; color:#fff;">{name}</h3>
+<p style="margin:0; font-size:0.8rem; color:#666;">{trades} Trades</p>
+</div>
+</div>
+<div style="display:flex; gap:40px; width:40%;">
+<div>
+<div class="grey-text">ROI (30d)</div>
+<div class="green-text" style="font-size:1.2rem;">{roi:.1f}%</div>
+</div>
+<div>
+<div class="grey-text">ACTIVE CASH</div>
+<div class="white-text" style="font-size:1.2rem;">${active:,.0f}</div>
+</div>
+</div>
+<div style="width:20%; text-align:right;">
+<a href="https://polymarket.com/profile/{wallet}" target="_blank" class="analyze-btn">
+Analyze ↗
+</a>
+</div>
+</div>
+"""
+        st.markdown(html, unsafe_allow_html=True)
 
-        # 2. Deep Scan
-        final_traders = []
-        total_candidates = len(candidates)
-        
-        # Variables for metrics
-        top_roi_seen = 0.0
-        total_money_seen = 0.0
-        
-        for idx, trader in enumerate(candidates):
-            wallet = trader.get('proxyWallet')
-            
-            # Check Experience
-            trades = get_trade_count(wallet)
-            if trades >= min_trades:
-                
-                # Check Money
-                time.sleep(0.2) 
-                val = get_manual_portfolio_value(wallet)
-                
-                if val >= min_money:
-                    
-                    # Check ROI
-                    profit = float(trader.get('pnl', 0))
-                    vol = float(trader.get('vol', trader.get('volume', 0)))
-                    roi = (profit / vol * 100) if vol > 0 else 0
-                    
-                    if roi >= min_roi:
-                        # SUCCESS - Add to list
-                        name = trader.get('userName', 'Unnamed')
-                        
-                        # Update Metrics Variables
-                        if roi > top_roi_seen: top_roi_seen = roi
-                        total_money_seen += val
-                        
-                        final_traders.append({
-                            "Name": name,
-                            "Active Capital ($)": val,
-                            "ROI (%)": roi,
-                            "Monthly Profit ($)": profit,
-                            "Experience (Trades)": trades,
-                            "Link": f"https://polymarket.com/profile/{wallet}"
-                        })
-                        
-                        # LIVE UI UPDATE
-                        metric_count.metric("Whales Found", f"{len(final_traders)}")
-                        metric_money.metric("Total Active Cap", f"${total_money_seen/1000000:.1f}M")
-                        metric_roi.metric("Top ROI", f"{top_roi_seen:.1f}%")
-                        
-                        # Live Table
-                        if final_traders:
-                            df = pd.DataFrame(final_traders)
-                            # Sort
-                            df = df.sort_values(by="Active Capital ($)", ascending=False)
-                            
-                            # STYLING: Highlight big numbers
-                            st.dataframe(
-                                df,
-                                column_config={
-                                    "Link": st.column_config.LinkColumn("Profile"),
-                                    "Active Capital ($)": st.column_config.NumberColumn(format="$%.2f"),
-                                    "Monthly Profit ($)": st.column_config.NumberColumn(format="$%.2f"),
-                                    "ROI (%)": st.column_config.ProgressColumn(format="%.1f%%", min_value=0, max_value=100),
-                                },
-                                use_container_width=True
-                            )
-
-            # Update Progress
-            progress_bar.progress(0.5 + (0.5 * (idx + 1) / total_candidates))
-
-        metric_status.metric("Status", "Complete", delta_color="normal")
-        
-        if final_traders:
-            st.success(f"Scan Finished! Found {len(final_traders)} elite traders.")
-            # CSV Download
-            df = pd.DataFrame(final_traders)
-            csv = df.to_csv(index=False).encode('utf-8')
-            st.download_button("📥 Download Data as CSV", csv, "polywatch_pro.csv", "text/csv")
-        else:
-            st.warning("No traders found. Try lowering your filters.")
-
-with tab2:
-    st.markdown("""
-    ### ℹ️ How to use PolyWatch Pro
-    
-    1.  **Set Scan Depth:** Higher means more results, but slower speed.
-    2.  **Min Active Capital:** Only finds people risking real money RIGHT NOW.
-    3.  **Min Trades:** Filters out lucky beginners.
-    
-    **Tips:**
-    * Look for High ROI + High Experience.
-    * Click the **Profile Link** in the table to see exactly what they are betting on.
-    """)
+else:
+    st.warning("No traders match these filters. Try lowering the sliders!")
