@@ -383,3 +383,45 @@ elif selected == "Analytics":
         st.markdown(f'<div class="metric-card"><h3>🚀 Avg ROI</h3><h2 style="color:#00FF41">{avg_roi:.1f}%</h2></div>', unsafe_allow_html=True)
     with c3:
         st.markdown(f'<div class="metric-card"><h3>👑 Best Trader</h3><h2 style="color:#FF6B35">{top_winner["userName"]}</h2></div>', unsafe_allow_html=True)
+        # --- SETTINGS PAGE ---
+elif selected == "Settings":
+    st.title("⚙️ Settings")
+    st.caption("Manage your preferences and alerts")
+    
+    st.divider()
+
+    # 1. PROFILE SECTION
+    st.subheader("👤 User Profile")
+    with st.container():
+        c1, c2 = st.columns([1, 4])
+        with c1:
+            st.markdown("""
+            <div style="background:#222; width:100px; height:100px; border-radius:50%; display:flex; justify-content:center; align-items:center; font-size:40px;">👤</div>
+            """, unsafe_allow_html=True)
+        with c2:
+            st.text_input("Display Name", value="CryptoKing", help="This name is only visible to you.")
+            st.text_input("Default Wallet Address", placeholder="0x...")
+
+    st.divider()
+
+    # 2. ALERTS SECTION
+    st.subheader("🔔 Notifications")
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        st.toggle("Whale Alerts", value=True, help="Get notified when a whale moves >$100k")
+        st.caption("Receive email alerts for large movements.")
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+    with c2:
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        st.toggle("New Trader Alerts", value=False)
+        st.caption("Notify me when a new profitable trader appears.")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    st.divider()
+    
+    # 3. APP INFO
+    st.info(f"PolyWatch Pro v1.2 • Connected to Polymarket API")
+    if st.button("Log Out", type="primary"):
+        st.success("You have been logged out.")
