@@ -4,7 +4,7 @@ import time
 
 # --- 1. YOUR SETTINGS (Exact Logic) ---
 SCAN_LIMIT = 1000       # <--- REQ 1: Top 1000 Profiles
-MIN_ACTIVE = 50000      # <--- REQ 2: Open Positions > $50k
+MIN_ACTIVE = 10000      # <--- REQ 2: Open Positions > $50k
 MIN_TRADES = 100        # <--- REQ 4: Experience > 100 Trades
 MIN_ROI = 1.0           # <--- REQ 3: ROI > 1%
 
@@ -52,7 +52,7 @@ def run_scan():
                     # Be polite to API (prevents crashing)
                     time.sleep(0.1) 
                     
-                    # --- LOGIC CHECK 2: ACTIVE CASH > $50k ---
+                    # --- LOGIC CHECK 2: ACTIVE CASH > $10k ---
                     active = get_active_balance(wallet)
                     if active >= MIN_ACTIVE:
                         
