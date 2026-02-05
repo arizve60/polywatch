@@ -71,6 +71,14 @@ st.markdown("""
     .badge-yes { background: rgba(0, 242, 234, 0.1); color: #00f2ea; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; border: 1px solid rgba(0, 242, 234, 0.2); }
     .badge-no { background: rgba(255, 43, 94, 0.1); color: #ff2b5e; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; border: 1px solid rgba(255, 43, 94, 0.2); }
     
+    /* HEADER ROW */
+    .header-row {
+        font-size: 12px; font-weight: 600; color: #888;
+        text-transform: uppercase; letter-spacing: 1px;
+        padding: 10px 5px; border-bottom: 1px solid rgba(255,255,255,0.1);
+        margin-bottom: 10px;
+    }
+
     /* FOOTER STATUS */
     .status-footer {
         display: flex; justify-content: center; align-items: center;
@@ -85,22 +93,33 @@ st.markdown("""
         box-shadow: 0 0 5px #00f2ea;
     }
     
-    /* LINKS */
-    a { text-decoration: none; transition: 0.3s; }
-    a:hover { opacity: 0.8; }
-    
+    /* BUTTONS */
     div.stButton > button {
         background: rgba(123, 97, 255, 0.1); border: 1px solid #7b61ff; color: #7b61ff; 
-        border-radius: 4px; transition: all 0.3s; width: 100%;
+        border-radius: 4px; transition: all 0.3s; width: 100%; height: 38px;
     }
-    div.stButton > button:hover { background: #7b61ff; color: white; }
+    div.stButton > button:hover { background: #7b61ff; color: white; box-shadow: 0 0 10px rgba(123, 97, 255, 0.4); }
+    
+    /* LINK BUTTON (Copy Trade) */
+    a[href*="t.me"] {
+        display: inline-flex; justify-content: center; align-items: center;
+        width: 100%; height: 38px;
+        background: rgba(0, 242, 234, 0.1); border: 1px solid #00f2ea; 
+        color: #00f2ea !important; border-radius: 4px; text-decoration: none;
+        font-weight: 600; transition: all 0.3s;
+    }
+    a[href*="t.me"]:hover {
+        background: #00f2ea; color: #000 !important; box-shadow: 0 0 10px rgba(0, 242, 234, 0.4);
+    }
+
     .stTextInput > div > div > input { background-color: #13131a; color: white; border: 1px solid #1f1f2e; }
 </style>
 """, unsafe_allow_html=True)
 
 # --- 3. SESSION STATE ---
 if 'selected_trader' not in st.session_state: st.session_state.selected_trader = None
-if 'sort_by' not in st.session_state: st.session_state.sort_by = "ROI"
+# --- UPDATED: DEFAULT SORT IS NOW "Volume" INSTEAD OF "ROI" ---
+if 'sort_by' not in st.session_state: st.session_state.sort_by = "Volume"
 if 'page_number' not in st.session_state: st.session_state.page_number = 0
 
 def view_trader(trader_id): st.session_state.selected_trader = trader_id
@@ -108,16 +127,14 @@ def close_view(): st.session_state.selected_trader = None
 def set_sort(col): st.session_state.sort_by = col
 
 def get_last_update_time():
-    """Gets the modification time of the elite_data.csv file"""
     try:
         if os.path.exists("elite_data.csv"):
             mod_time = os.path.getmtime("elite_data.csv")
             return datetime.fromtimestamp(mod_time).strftime("%m/%d/%Y %H:%M")
         return "Unknown"
-    except:
-        return "Unknown"
+    except: return "Unknown"
 
-# --- 4. FINANCIAL ENGINE (PARALLELIZED) ---
+# --- 4. FINANCIAL ENGINE ---
 
 @st.cache_data(ttl=300)
 def get_active_positions(wallet):
@@ -168,7 +185,7 @@ def get_active_positions(wallet):
             c_id = p.get('conditionId')
             market_info = market_map.get(c_id, {})
             market_title = market_info.get('title')
-            market_slug = market_info.get('slug', '')
+            market_slug = market_info.get('slug')
             if not market_title: market_title = f"Unknown Market ({c_id[:6]}...)"
             outcome_val = p.get('outcome', 'Unknown')
             
@@ -396,13 +413,15 @@ if menu == "Dashboard":
             elif st.session_state.sort_by == "Volume": filtered = filtered.sort_values("Volume", ascending=False)
             elif st.session_state.sort_by == "PnL": filtered = filtered.sort_values("PnL", ascending=False)
 
-            h1, h2, h3, h4, h5, h6 = st.columns([3, 1.2, 1.2, 1.2, 1.2, 1])
+            # --- HEADER (UPDATED WITH COPY) ---
+            h1, h2, h3, h4, h5, h6, h7 = st.columns([2.8, 1.0, 1.0, 1.0, 1.2, 0.7, 1.1])
             h1.markdown('<div class="header-row">TRADER</div>', unsafe_allow_html=True)
             h2.button("ROI ▼", on_click=set_sort, args=("ROI",))
             h3.button("PROFIT ▼", on_click=set_sort, args=("PnL",))
             h4.button("BALANCE ▼", on_click=set_sort, args=("Balance",))
             h5.button("VOLUME ▼", on_click=set_sort, args=("Volume",))
             h6.markdown('<div class="header-row">ACTION</div>', unsafe_allow_html=True)
+            h7.markdown('<div class="header-row">COPY</div>', unsafe_allow_html=True)
             
             ROWS_PER_PAGE = 20
             if st.session_state.page_number * ROWS_PER_PAGE >= len(filtered):
@@ -413,7 +432,8 @@ if menu == "Dashboard":
             
             for idx, row in page_data.iterrows():
                 with st.container():
-                    c1, c2, c3, c4, c5, c6 = st.columns([3, 1.2, 1.2, 1.2, 1.2, 1])
+                    # --- ROW (UPDATED WITH COPY) ---
+                    c1, c2, c3, c4, c5, c6, c7 = st.columns([2.8, 1.0, 1.0, 1.0, 1.2, 0.7, 1.1])
                     raw = str(row['Display_Name'])
                     disp = f"{raw[:6]}...{raw[-4:]}" if raw.startswith("0x") else raw
                     link_id = row['Link_ID']
@@ -426,6 +446,7 @@ if menu == "Dashboard":
                     c4.markdown(f"${row['Balance']:,.0f}")
                     c5.markdown(f"${row['Volume']:,.0f}")
                     c6.button("View", key=f"btn_{idx}", on_click=view_trader, args=(link_id,))
+                    c7.link_button("🤖 Copy Trade", "https://t.me/PolyCop_BOT?start=ref_SNMAHQBP")
                     st.markdown("<hr style='margin:5px 0; border-top:1px solid #1f1f2e;'>", unsafe_allow_html=True)
             
             c_prev, c_info, c_next = st.columns([1, 2, 1])
@@ -441,7 +462,6 @@ if menu == "Dashboard":
                     st.session_state.page_number += 1
                     st.rerun()
     
-    # --- AUTO-UPDATE STATUS FOOTER ---
     last_update = get_last_update_time()
     st.markdown(f"""
         <div class="status-footer">
