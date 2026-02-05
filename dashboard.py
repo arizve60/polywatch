@@ -10,7 +10,7 @@ import re
 import hashlib
 import requests
 import urllib.parse
-import concurrent.futures # <--- NEW: For Parallel Processing
+import concurrent.futures
 from datetime import datetime, timedelta
 
 # --- 1. CONFIGURATION ---
@@ -71,6 +71,20 @@ st.markdown("""
     .badge-yes { background: rgba(0, 242, 234, 0.1); color: #00f2ea; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; border: 1px solid rgba(0, 242, 234, 0.2); }
     .badge-no { background: rgba(255, 43, 94, 0.1); color: #ff2b5e; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; border: 1px solid rgba(255, 43, 94, 0.2); }
     
+    /* FOOTER STATUS */
+    .status-footer {
+        display: flex; justify-content: center; align-items: center;
+        padding: 12px; margin-top: 40px; margin-bottom: 20px;
+        background: rgba(0, 242, 234, 0.05);
+        border: 1px solid rgba(0, 242, 234, 0.2);
+        border-radius: 8px; color: #aaa; font-size: 13px;
+    }
+    .status-dot {
+        height: 8px; width: 8px; background-color: #00f2ea;
+        border-radius: 50%; display: inline-block; margin-right: 10px;
+        box-shadow: 0 0 5px #00f2ea;
+    }
+    
     /* LINKS */
     a { text-decoration: none; transition: 0.3s; }
     a:hover { opacity: 0.8; }
@@ -93,126 +107,99 @@ def view_trader(trader_id): st.session_state.selected_trader = trader_id
 def close_view(): st.session_state.selected_trader = None
 def set_sort(col): st.session_state.sort_by = col
 
+def get_last_update_time():
+    """Gets the modification time of the elite_data.csv file"""
+    try:
+        if os.path.exists("elite_data.csv"):
+            mod_time = os.path.getmtime("elite_data.csv")
+            return datetime.fromtimestamp(mod_time).strftime("%m/%d/%Y %H:%M")
+        return "Unknown"
+    except:
+        return "Unknown"
+
 # --- 4. FINANCIAL ENGINE (PARALLELIZED) ---
 
-@st.cache_data(ttl=300) # Cache for 5 mins to make subsequent loads instant
+@st.cache_data(ttl=300)
 def get_active_positions(wallet):
-    """Fetches live positions using PARALLEL PROCESSING for speed"""
-    
     HEADERS = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "application/json",
         "Referer": "https://polymarket.com/"
     }
-
     try:
-        # 1. Fetch Raw Positions (Fast)
         url = f"https://data-api.polymarket.com/positions?user={wallet}&limit=50&sortBy=CURRENT&sortDirection=DESC"
         resp = requests.get(url, headers=HEADERS, timeout=5)
-        
-        if resp.status_code != 200:
-            return [], f"API Error {resp.status_code}"
-            
+        if resp.status_code != 200: return [], f"API Error {resp.status_code}"
         r = resp.json()
         if not r: return [], "No active positions found."
 
-        # 2. Collect IDs
         condition_ids = [p.get('conditionId') for p in r if p.get('conditionId')]
         market_map = {}
         
-        # 3. Batch Fetch Titles (Single Bulk Call for Speed)
         if condition_ids:
             try:
                 g_url = "https://gamma-api.polymarket.com/markets"
-                # Join all IDs at once (up to 50 is usually fine for Gamma)
                 id_str = ",".join(condition_ids)
                 markets = requests.get(g_url, params={"condition_ids": id_str}, headers=HEADERS, timeout=5).json()
                 for m in markets:
                     market_map[m.get('conditionId')] = {
-                        'title': m.get('question'),
-                        'slug': m.get('slug'),
+                        'title': m.get('question'), 'slug': m.get('slug'),
                         'outcomes': eval(m.get('outcomes')) if isinstance(m.get('outcomes'), str) else m.get('outcomes')
                     }
             except: pass
 
-        # 4. Define Helper for Parallel Fallback
         def fetch_fallback_title(c_id):
             try:
                 clob_url = f"https://clob.polymarket.com/markets/{c_id}"
                 clob_data = requests.get(clob_url, headers=HEADERS, timeout=3).json()
                 return c_id, clob_data.get('question'), clob_data.get('slug')
-            except:
-                return c_id, None, None
+            except: return c_id, None, None
 
-        # Identify missing data to fetch in parallel
         missing_ids = [p.get('conditionId') for p in r if p.get('conditionId') not in market_map]
-        
-        # 5. Execute Parallel Fetching for Missing Data
         if missing_ids:
             with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
                 results = executor.map(fetch_fallback_title, missing_ids)
                 for c_id, title, slug in results:
-                    if title:
-                        market_map[c_id] = {'title': title, 'slug': slug, 'outcomes': None}
+                    if title: market_map[c_id] = {'title': title, 'slug': slug, 'outcomes': None}
 
-        # 6. Build Final List
         clean_data = []
         for p in r:
             if float(p.get('currentValue', 0)) < 1.0: continue
-            
             c_id = p.get('conditionId')
             market_info = market_map.get(c_id, {})
-            
             market_title = market_info.get('title')
             market_slug = market_info.get('slug', '')
-            
-            if not market_title:
-                market_title = f"Unknown Market ({c_id[:6]}...)"
-
+            if not market_title: market_title = f"Unknown Market ({c_id[:6]}...)"
             outcome_val = p.get('outcome', 'Unknown')
             
-            if market_slug:
-                final_link = f"https://polymarket.com/event/{market_slug}"
+            if market_slug: final_link = f"https://polymarket.com/event/{market_slug}"
             elif market_title and "Unknown" not in market_title:
                 safe_query = urllib.parse.quote(market_title)
                 final_link = f"https://polymarket.com/search?q={safe_query}"
-            else:
-                final_link = "https://polymarket.com"
+            else: final_link = "https://polymarket.com"
 
             clean_data.append({
-                "Market": market_title,
-                "Outcome": outcome_val,
-                "Entry": float(p.get('avgPrice', 0)),
-                "Price": float(p.get('curPrice', 0)),
-                "Value": float(p.get('currentValue', 0)),
-                "PnL": float(p.get('cashPnl', 0)),
-                "Return": float(p.get('percentPnl', 0)) * 100,
-                "Link": final_link
+                "Market": market_title, "Outcome": outcome_val,
+                "Entry": float(p.get('avgPrice', 0)), "Price": float(p.get('curPrice', 0)),
+                "Value": float(p.get('currentValue', 0)), "PnL": float(p.get('cashPnl', 0)),
+                "Return": float(p.get('percentPnl', 0)) * 100, "Link": final_link
             })
-            
         return clean_data, None
-    except Exception as e:
-        return [], str(e)
+    except Exception as e: return [], str(e)
 
 def generate_trader_history(trader_id, current_balance, roi_pct):
     seed = int(hashlib.md5(str(trader_id).encode()).hexdigest(), 16) % 10**8
     np.random.seed(seed)
-    
     days = 180
     dates = [datetime.today() - timedelta(days=x) for x in range(days)][::-1]
-    
     if current_balance <= 0: current_balance = 1000
     safe_roi = max(min(roi_pct, 50000.0), -99.0) 
     start_balance = current_balance / (1 + (safe_roi / 100.0))
-    total_multiplier = 1 + (safe_roi / 100.0)
-    daily_growth = (total_multiplier ** (1/days)) - 1
+    daily_growth = ((1 + (safe_roi / 100.0)) ** (1/days)) - 1
     volatility = max(0.02, abs(daily_growth) * 3.0) 
     daily_returns = np.random.normal(daily_growth, volatility, days)
     equity = [start_balance]
-    for r in daily_returns:
-        val = equity[-1] * (1 + r)
-        val = max(val, 1.0)
-        equity.append(val)
+    for r in daily_returns: equity.append(max(equity[-1] * (1 + r), 1.0))
     final_sim = equity[-1]
     correction = np.linspace(1, current_balance / final_sim, len(equity))
     equity = [e * c for e, c in zip(equity, correction)]
@@ -228,16 +215,11 @@ def generate_trader_history(trader_id, current_balance, roi_pct):
     sharpe = (np.mean(daily_returns) / returns_std * np.sqrt(365)) if returns_std != 0 else 0
     eq_series = pd.Series(equity)
     roll_max = eq_series.cummax()
-    dd = (eq_series - roll_max) / roll_max
-    max_dd = dd.min() * 100 if len(dd) > 0 else 0
-    return {
-        "dates": dates, "equity": equity, "daily_pnl": pnl_values,
-        "metrics": {
-            "sharpe": sharpe, "profit_factor": abs(sum(wins)/sum(losses)) if sum(losses) != 0 else 99,
+    max_dd = ((eq_series - roll_max) / roll_max).min() * 100 if len(eq_series) > 0 else 0
+    return {"dates": dates, "equity": equity, "daily_pnl": pnl_values,
+            "metrics": {"sharpe": sharpe, "profit_factor": abs(sum(wins)/sum(losses)) if sum(losses) != 0 else 99,
             "win_rate": win_rate, "max_dd": max_dd, "avg_win": avg_win, "avg_loss": avg_loss,
-            "start_bal": start_balance, "expectancy": (avg_win * (win_rate/100)) - (abs(avg_loss) * (1 - win_rate/100))
-        }
-    }
+            "start_bal": start_balance, "expectancy": (avg_win * (win_rate/100)) - (abs(avg_loss) * (1 - win_rate/100))}}
 
 # --- 5. DATA LOADER ---
 @st.cache_data
@@ -265,15 +247,12 @@ def get_data():
         if 'Balance' in df.columns: df['Balance'] = df['Balance'].apply(clean)
         else: df['Balance'] = 0.0
         if 'PnL' in df.columns: df['PnL'] = df['PnL'].apply(clean)
-        if 'ROI' in df.columns:
-            df['ROI'] = df['ROI'].apply(clean)
+        if 'ROI' in df.columns: df['ROI'] = df['ROI'].apply(clean)
         elif 'PnL' in df.columns and 'Balance' in df.columns:
             df['ROI'] = df.apply(lambda row: (row['PnL'] / (row['Balance'] - row['PnL']) * 100) if (row['Balance'] - row['PnL']) != 0 else 0, axis=1)
         else: df['ROI'] = 0.0
-        if 'Volume' in df.columns:
-            df['Volume'] = df['Volume'].apply(clean)
-        else:
-            df['Volume'] = df.apply(lambda row: row['Balance'] * (int(hashlib.md5(str(row['Link_ID']).encode()).hexdigest(), 16) % 20 + 5), axis=1)
+        if 'Volume' in df.columns: df['Volume'] = df['Volume'].apply(clean)
+        else: df['Volume'] = df.apply(lambda row: row['Balance'] * (int(hashlib.md5(str(row['Link_ID']).encode()).hexdigest(), 16) % 20 + 5), axis=1)
         mask_insane = df['ROI'] > 100000
         if mask_insane.any() and 'PnL' in df.columns:
              df.loc[mask_insane, 'ROI'] = (df.loc[mask_insane, 'PnL'] / (df.loc[mask_insane, 'Balance'] - df.loc[mask_insane, 'PnL']) * 100)
@@ -338,12 +317,10 @@ if menu == "Dashboard":
             fig2.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=350, margin=dict(l=0,r=0,t=0,b=0), xaxis=dict(showgrid=False, color='#666'), yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.05)', color='#666'))
             st.plotly_chart(fig2, use_container_width=True)
 
-        # --- LIVE POSITIONS ---
         st.markdown("### 📂 Active Positions")
         with st.spinner("Fetching live positions from blockchain..."):
             positions, error_msg = get_active_positions(user_row['Link_ID'])
         
-        # --- SHOW DATA OR ERROR ---
         if positions:
             pos_df = pd.DataFrame(positions)
             html_rows = []
@@ -352,7 +329,6 @@ if menu == "Dashboard":
                 pnl_color = "#00f2ea" if row['PnL'] >= 0 else "#ff2b5e"
                 outcome_badge = f"<span class='badge-yes'>{row['Outcome']}</span>" if str(row['Outcome']).upper() == "YES" else f"<span class='badge-no'>{row['Outcome']}</span>"
                 
-                # HTML FLATTENED TO AVOID MARKDOWN INDENTATION
                 row_html = f"""<tr>
 <td><a href="{row['Link']}" target="_blank" rel="noopener noreferrer" style="color:#ddd; font-weight:500;">{row['Market']}</a></td>
 <td class="text-center">{outcome_badge}</td>
@@ -364,7 +340,6 @@ if menu == "Dashboard":
 </tr>"""
                 html_rows.append(row_html)
             
-            # TABLE FLATTENED
             table_html = f"""<table class="pro-table">
 <thead>
 <tr>
@@ -383,10 +358,8 @@ if menu == "Dashboard":
 </table>"""
             st.markdown(table_html, unsafe_allow_html=True)
         else:
-            if error_msg:
-                st.error(f"⚠️ {error_msg}")
-            else:
-                st.info("ℹ️ No active positions found for this trader.")
+            if error_msg: st.error(f"⚠️ {error_msg}")
+            else: st.info("ℹ️ No active positions found for this trader.")
 
             if st.button("Show Demo Data (Test UI)"):
                 demo_html = """<table class="pro-table">
@@ -467,6 +440,15 @@ if menu == "Dashboard":
                 if st.button("Next ➡️") and end_idx < len(filtered):
                     st.session_state.page_number += 1
                     st.rerun()
+    
+    # --- AUTO-UPDATE STATUS FOOTER ---
+    last_update = get_last_update_time()
+    st.markdown(f"""
+        <div class="status-footer">
+            <span class="status-dot"></span>
+            Data updated every 24 hours | Last update: {last_update}
+        </div>
+    """, unsafe_allow_html=True)
 
 if menu == "Whale Scanner":
     st.title("🔍 Whale Wallet Analyzer")
