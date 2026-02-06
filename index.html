@@ -3,11 +3,21 @@
   <head>
     <title>PolyWatch Pro</title>
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; }
-        iframe { width: 100%; height: 100%; border: none; }
+      body, html { 
+        margin: 0; 
+        padding: 0; 
+        height: 100%; 
+        overflow: hidden; /* This cuts off the extra height */
+      }
+      iframe { 
+        width: 100%; 
+        /* We make the window 104% tall to push the bottom 4% (the footer) off the screen */
+        height: 104%; 
+        border: none; 
+      }
     </style>
   </head>
   <body>
-    <iframe src="https://polywatch.streamlit.app"></iframe>
+    <iframe src="https://polywatch.streamlit.app/?embed=true"></iframe>
   </body>
 </html>
