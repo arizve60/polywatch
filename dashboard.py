@@ -93,12 +93,40 @@ st.markdown("""
         box-shadow: 0 0 5px #00f2ea;
     }
     
-    /* BUTTONS */
-    div.stButton > button {
-        background: rgba(123, 97, 255, 0.1); border: 1px solid #7b61ff; color: #7b61ff; 
-        border-radius: 4px; transition: all 0.3s; width: 100%; height: 38px;
+    /* --- BUTTON STYLES --- */
+
+    /* 1. DEFAULT BUTTONS (Secondary) - Keep Outline Style for "View" */
+    div.stButton > button[kind="secondary"] {
+        background: rgba(123, 97, 255, 0.1); 
+        border: 1px solid #7b61ff; 
+        color: #7b61ff; 
+        border-radius: 4px; 
+        transition: all 0.3s; 
+        width: 100%; 
+        height: 38px;
     }
-    div.stButton > button:hover { background: #7b61ff; color: white; box-shadow: 0 0 10px rgba(123, 97, 255, 0.4); }
+    div.stButton > button[kind="secondary"]:hover { 
+        background: #7b61ff; 
+        color: white; 
+        box-shadow: 0 0 10px rgba(123, 97, 255, 0.4); 
+    }
+
+    /* 2. FLAT HEADER BUTTONS (Primary) - Transparent & No Border */
+    div.stButton > button[kind="primary"] {
+        background: transparent !important;
+        border: none !important;
+        color: #888 !important;
+        font-size: 12px !important;
+        font-weight: 600 !important;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        box-shadow: none !important;
+        padding-top: 10px !important;
+    }
+    div.stButton > button[kind="primary"]:hover {
+        color: #fff !important;
+        background: transparent !important;
+    }
     
     /* LINK BUTTON (Copy Trade) */
     a[href*="t.me"] {
@@ -112,13 +140,38 @@ st.markdown("""
         background: #00f2ea; color: #000 !important; box-shadow: 0 0 10px rgba(0, 242, 234, 0.4);
     }
 
+    /* --- CUSTOM FILTER/SELECTBOX STYLE (RED BORDER) --- */
+    div[data-baseweb="select"] > div {
+        background-color: #0e0e12 !important;
+        border: 1px solid #ff2b5e !important; 
+        color: white !important;
+        border-radius: 4px !important;
+    }
+    div[data-baseweb="select"] svg {
+        fill: #aaa !important;
+    }
+    div[data-baseweb="popover"] {
+        background-color: #0e0e12 !important;
+        border: 1px solid #333 !important;
+    }
+    div[data-baseweb="menu"] {
+        background-color: #0e0e12 !important;
+    }
+    li[role="option"] {
+        color: #e0e0e0 !important;
+    }
+    li[role="option"][aria-selected="true"], li[role="option"]:hover {
+        background-color: rgba(255, 43, 94, 0.2) !important;
+        color: white !important;
+        font-weight: bold;
+    }
+
     .stTextInput > div > div > input { background-color: #13131a; color: white; border: 1px solid #1f1f2e; }
 </style>
 """, unsafe_allow_html=True)
 
 # --- 3. SESSION STATE ---
 if 'selected_trader' not in st.session_state: st.session_state.selected_trader = None
-# --- UPDATED: DEFAULT SORT IS NOW "Volume" INSTEAD OF "ROI" ---
 if 'sort_by' not in st.session_state: st.session_state.sort_by = "Volume"
 if 'page_number' not in st.session_state: st.session_state.page_number = 0
 
@@ -402,24 +455,29 @@ if menu == "Dashboard":
             c2.markdown(f'<div class="metric-card"><div class="metric-label">💰 Total Volume</div><div class="metric-value">${total_vol:,.0f}</div></div>', unsafe_allow_html=True)
             c3.markdown(f'<div class="metric-card"><div class="metric-label">👥 Whales Tracked</div><div class="metric-value">{len(df)}</div></div>', unsafe_allow_html=True)
 
-            with st.expander("🌪️ Filters", expanded=False):
-                col1, col2 = st.columns(2)
-                min_roi = col1.slider("Min ROI %", 0, 1000, 0)
-                min_bal = col2.number_input("Min Balance", 0, step=1000)
-            
-            filtered = df[(df['ROI'] >= min_roi) & (df['Balance'] >= min_bal)]
-            if st.session_state.sort_by == "ROI": filtered = filtered.sort_values("ROI", ascending=False)
-            elif st.session_state.sort_by == "Balance": filtered = filtered.sort_values("Balance", ascending=False)
-            elif st.session_state.sort_by == "Volume": filtered = filtered.sort_values("Volume", ascending=False)
-            elif st.session_state.sort_by == "PnL": filtered = filtered.sort_values("PnL", ascending=False)
+            # --- SORT DROPDOWN (RED STYLE) ---
+            # Replaced Expander Filters with just this dropdown
+            c_sort, _ = st.columns([1, 4])
+            with c_sort:
+                st.markdown("**Sort By:**")
+                sort_opt = st.selectbox("", ["Volume", "ROI", "Profit", "Balance"], label_visibility="collapsed")
 
-            # --- HEADER (UPDATED WITH COPY) ---
+            sort_map = {"Volume": "Volume", "ROI": "ROI", "Profit": "PnL", "Balance": "Balance"}
+            
+            # Simplified Filtering (Just sorting now, since sliders are removed)
+            filtered = df
+            if sort_opt:
+                filtered = filtered.sort_values(sort_map[sort_opt], ascending=False)
+
+            # --- HEADER (FLAT BUTTONS) ---
             h1, h2, h3, h4, h5, h6, h7 = st.columns([2.8, 1.0, 1.0, 1.0, 1.2, 0.7, 1.1])
             h1.markdown('<div class="header-row">TRADER</div>', unsafe_allow_html=True)
-            h2.button("ROI ▼", on_click=set_sort, args=("ROI",))
-            h3.button("PROFIT ▼", on_click=set_sort, args=("PnL",))
-            h4.button("BALANCE ▼", on_click=set_sort, args=("Balance",))
-            h5.button("VOLUME ▼", on_click=set_sort, args=("Volume",))
+            
+            h2.button("ROI ▼", type="primary", on_click=set_sort, args=("ROI",))
+            h3.button("PROFIT ▼", type="primary", on_click=set_sort, args=("PnL",))
+            h4.button("BALANCE ▼", type="primary", on_click=set_sort, args=("Balance",))
+            h5.button("VOLUME ▼", type="primary", on_click=set_sort, args=("Volume",))
+            
             h6.markdown('<div class="header-row">ACTION</div>', unsafe_allow_html=True)
             h7.markdown('<div class="header-row">COPY</div>', unsafe_allow_html=True)
             
@@ -432,7 +490,6 @@ if menu == "Dashboard":
             
             for idx, row in page_data.iterrows():
                 with st.container():
-                    # --- ROW (UPDATED WITH COPY) ---
                     c1, c2, c3, c4, c5, c6, c7 = st.columns([2.8, 1.0, 1.0, 1.0, 1.2, 0.7, 1.1])
                     raw = str(row['Display_Name'])
                     disp = f"{raw[:6]}...{raw[-4:]}" if raw.startswith("0x") else raw
@@ -445,6 +502,7 @@ if menu == "Dashboard":
                     c3.markdown(f"<span style='color:{pnl_color}'>${row['PnL']:,.0f}</span>", unsafe_allow_html=True)
                     c4.markdown(f"${row['Balance']:,.0f}")
                     c5.markdown(f"${row['Volume']:,.0f}")
+                    
                     c6.button("View", key=f"btn_{idx}", on_click=view_trader, args=(link_id,))
                     c7.link_button("🤖 Copy Trade", "https://t.me/PolyCop_BOT?start=ref_SNMAHQBP")
                     st.markdown("<hr style='margin:5px 0; border-top:1px solid #1f1f2e;'>", unsafe_allow_html=True)
