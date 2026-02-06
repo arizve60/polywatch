@@ -15,6 +15,15 @@ from datetime import datetime, timedelta
 
 # --- 1. CONFIGURATION ---
 st.set_page_config(layout="wide", page_title="PolyWatch Pro", page_icon="⚡")
+# --- HIDE STREAMLIT STYLE ---
+hide_st_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            header {visibility: hidden;}
+            </style>
+            """
+st.markdown(hide_st_style, unsafe_allow_html=True)
 
 # --- 2. CSS STYLING ---
 st.markdown("""
