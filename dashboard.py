@@ -14,7 +14,7 @@ import concurrent.futures
 from datetime import datetime, timedelta
 
 # --- 1. CONFIGURATION ---
-st.set_page_config(layout="wide", page_title="PolyWatch Pro", page_icon="⚡")
+st.set_page_config(layout="wide", page_title="PolyWatch.co", page_icon="⚡")
 # --- HIDE STREAMLIT STYLE ---
 hide_st_style = """
             <style>
