@@ -468,7 +468,7 @@ if menu == "Dashboard":
             c_sort, _ = st.columns([1, 4])
             with c_sort:
                 st.markdown("**Sort By:**")
-                sort_opt = st.selectbox("", ["Volume", "ROI", "Profit", "Balance"], label_visibility="collapsed")
+                sort_opt = st.selectbox("Sort By:", ["ROI", "Volume", "Profit", "Balance"])
 
             sort_map = {"Volume": "Volume", "ROI": "ROI", "Profit": "PnL", "Balance": "Balance"}
             
