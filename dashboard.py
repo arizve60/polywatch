@@ -340,8 +340,8 @@ def get_data():
 # --- 6. UI RENDERER ---
 with st.sidebar:
     st.markdown("### ⚡ PolyWatch")
-    menu = option_menu(None, ["Dashboard", "Whale Scanner", "Settings"], 
-                       icons=["grid-fill", "search", "gear"], 
+    menu = option_menu(None, ["Dashboard", "Whale Scanner", "Settings", "Donate Us"], 
+                       icons=["grid-fill", "search", "gear", "heart-fill"], 
                        styles={"nav-link-selected": {"background-color": "#7b61ff"}})
 
 if menu == "Dashboard":
@@ -600,3 +600,14 @@ if menu == "Settings":
     st.markdown("<br>", unsafe_allow_html=True)
     if st.button("💾 Save Configuration"):
         st.toast("Settings Saved Successfully!", icon="✅")
+        # This must be ALL THE WAY to the left
+if menu == "Donate Us":
+    st.title("💖 Support PolyWatch")
+    st.write("### Help us keep the servers running!")
+    st.write("PolyWatch is a free tool built for the community. If you found a 100x trade using our data, consider buying us a coffee.")
+    st.divider()
+
+    # The Donation Box
+    st.info("👇 **Official Donation Address (EVM / Polygon / ETH)**")
+    st.code("0x18e19FC57333c07C900c8eDD091B5932F9b97Aa4", language="text")
+    st.caption("Transactions on Polygon network are preferred (lower gas fees!). Thank you for your support. 🚀")
